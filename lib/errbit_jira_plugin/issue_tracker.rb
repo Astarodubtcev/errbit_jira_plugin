@@ -46,6 +46,23 @@ module ErrbitJiraPlugin
       FIELDS
     end
 
+    def self.icons
+      @icons ||= {
+        active: [
+          'image/png', ErrbitJiraPlugin.read_static_file('jira_active.png')
+        ],
+        create: [
+          'image/png', ErrbitJiraPlugin.read_static_file('jira_create.png')
+        ],
+        goto: [
+          'image/png', ErrbitJiraPlugin.read_static_file('jira_goto.png'),
+        ],
+        inactive: [
+          'image/png', ErrbitJiraPlugin.read_static_file('jira_inactive.png'),
+        ]
+      }
+    end
+
     def self.body_template
       @body_template ||= ERB.new(File.read(
         File.join(
@@ -55,12 +72,12 @@ module ErrbitJiraPlugin
     end
 
     def configured?
-      params['project_id'].present?
+      options['project_id'].present?
     end
 
     def errors
       errors = []
-      if self.class.fields.detect {|f| params[f[0]].blank? && !f[1][:optional]}
+      if self.class.fields.detect {|f| options[f[0]].blank?  && !f[1][:optional]}
         errors << [:base, 'You must specify all non optional values!']
       end
       errors
@@ -71,45 +88,46 @@ module ErrbitJiraPlugin
     end
 
     def client
-      options = {
-        :username => params['username'],
-        :password => params['password'],
-        :site => params['base_url'],
+      params = {
+        :username => options['username'],
+        :password => options['password'],
+        :site => options['base_url'],
         :auth_type => :basic,
-        :context_path => (params['context_path'] == '/') ? params['context_path'] = '' : params['context_path']
+        :context_path => (options['context_path'] == '/') ? options['context_path'] = '' : options['context_path']
       }
-      JIRA::Client.new(options)
+      JIRA::Client.new(params)
     end
 
-    def create_issue(problem, reported_by = nil)
+    def create_issue(title, body, user: {})
       begin
-        issue_title =  "[#{ problem.environment }][#{ problem.where }] #{problem.message.to_s.truncate(100)}".delete!("\n")
-        issue_description = self.class.body_template.result(binding).unpack('C*').pack('U*')
-        issue = {"fields"=>{"summary"=>issue_title, "description"=>issue_description,"project"=>{"key"=>params['project_id']},"issuetype"=>{"id"=>"3"},"priority"=>{"name"=>params['issue_priority']}}}
-        
+        issue_title =  title
+        issue_description = body
+        issue = {"fields"=>{"summary"=>issue_title.squish,
+                            "description"=>issue_description,
+                            "project"=>{"key"=>options['project_id']},
+                            "issuetype"=>{"id"=>"3"},
+                            "priority"=>{"name"=>options['issue_priority']}}}
+
         issue_build = client.Issue.build
         issue_build.save(issue)
-        
-        problem.update_attributes(
-          :issue_link => jira_url(issue_build.key),
-          :issue_type => params['issue_type']
-        )
 
-      rescue JIRA::HTTPError
-        raise ErrbitJiraPlugin::IssueError, "Could not create an issue with Jira.  Please check your credentials."
+        jira_url(issue_build.key)
+
+      rescue JIRA::HTTPError => e
+        raise ErrbitJiraPlugin::IssueError, e.response.body
       end
     end
 
-    def jira_url(project_id)
-      "#{params['base_url']}#{ctx_path}browse/#{project_id}"
+    def jira_url(key)
+      "#{options['base_url']}#{ctx_path}browse/#{options['project_id']}/issues/#{key}"
     end
 
     def ctx_path
-      (params['context_path'] == '') ? '/' : params['context_path']
+      (options['context_path'] == '') ? '/' : options['context_path']
     end
 
     def url
-      params['base_url']
+      options['base_url']
     end
   end
 end
