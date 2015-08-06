@@ -83,7 +83,7 @@ module ErrbitJiraPlugin
 
     def create_issue(problem, reported_by = nil)
       begin
-        issue_title =  "[#{ problem.environment }][#{ problem.where }] #{problem.message.to_s.truncate(100)}".delete!("\n")
+        issue_title =  "[#{ problem.environment }][#{ problem.where }] #{problem.message.to_s.truncate(100)}".squish!
         issue_description = self.class.body_template.result(binding).unpack('C*').pack('U*')
         issue = {"fields"=>{"summary"=>issue_title, "description"=>issue_description,"project"=>{"key"=>params['project_id']},"issuetype"=>{"id"=>"3"},"priority"=>{"name"=>params['issue_priority']}}}
 

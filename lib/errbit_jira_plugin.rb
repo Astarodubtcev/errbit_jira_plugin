@@ -1,4 +1,3 @@
-
 require 'errbit_jira_plugin/version'
 require 'errbit_jira_plugin/error'
 require 'errbit_jira_plugin/issue_tracker'
